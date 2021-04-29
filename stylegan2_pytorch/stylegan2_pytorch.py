@@ -565,16 +565,34 @@ class Generator(nn.Module):
         self.latent_dim = latent_dim
         self.num_layers = int(log2(image_size) - 1)
 
-        filters = [network_capacity * (2 ** (i + 1)) for i in range(self.num_layers)][::-1]
+        # [
+        # layer 15  [16 * (2^(16))] -> [1048576] -> [512]
+        # layer 14  [16 * (2^(15))] -> [524288]  -> [512]
+        # ...
+        # layer 1   [16 * (2^2)]    -> [64]      -> [64]
+        # layer 0   [16 * (2)]      -> [32]      -> [32]
+        # ]
+        #                                                                            [reversed]
+        filters = [network_capacity * (2 ** (i + 1)) for i in range(self.num_layers)][::-1] 
 
+        # Limit every element in the filters array to 512 maximum
+        # set_fmap_max(1024) -> min(512, 1024)
         set_fmap_max = partial(min, fmap_max)
+        # run set_fmap_max on every element of the list
         filters = list(map(set_fmap_max, filters))
+        
+        # Most probably 512
         init_channels = filters[0]
+        
+        # Add init_channels to the front of the filters list
         filters = [init_channels, *filters]
 
+        # Convert into pairs
+        # ex: [1,2,3,4,5] -> [[1,2],[2,3],[3,4],[4,5]]
         in_out_pairs = zip(filters[:-1], filters[1:])
-        self.no_const = no_const
+        self.no_const = no_const # False by default
 
+        # False by default
         if no_const:
             self.to_initial_block = nn.ConvTranspose2d(latent_dim, init_channels, 4, 1, 0, bias=False)
         else:
