@@ -563,14 +563,16 @@ class Generator(nn.Module):
         super().__init__()
         self.image_size = image_size
         self.latent_dim = latent_dim
+
+        # 8 for 512, 7 for 256
         self.num_layers = int(log2(image_size) - 1)
 
         # [
-        # layer 15  [16 * (2^(16))] -> [1048576] -> [512]
-        # layer 14  [16 * (2^(15))] -> [524288]  -> [512]
+        # layer 15  [16 * (2^(7))] -> [2048] -> [512]
+        # layer 14  [16 * (2^(6))] -> [1024] -> [512]
         # ...
-        # layer 1   [16 * (2^2)]    -> [64]      -> [64]
-        # layer 0   [16 * (2)]      -> [32]      -> [32]
+        # layer 1   [16 * (2^2)]    -> [64]  -> [64]
+        # layer 0   [16 * (2)]      -> [32]  -> [32]
         # ]
         #                                                                            [reversed]
         filters = [network_capacity * (2 ** (i + 1)) for i in range(self.num_layers)][::-1] 
@@ -589,6 +591,7 @@ class Generator(nn.Module):
 
         # Convert into pairs
         # ex: [1,2,3,4,5] -> [[1,2],[2,3],[3,4],[4,5]]
+        # For 256x256 image: [(512, 512), (512, 512), (512, 256), (256, 128), (128, 64), (64, 32)]
         in_out_pairs = zip(filters[:-1], filters[1:])
         self.no_const = no_const # False by default
 
@@ -596,8 +599,11 @@ class Generator(nn.Module):
         if no_const:
             self.to_initial_block = nn.ConvTranspose2d(latent_dim, init_channels, 4, 1, 0, bias=False)
         else:
+            # 1 x 512 x 4 x 4 array filled with random numbers
+            # nn.Parameter means when it's associated with a nn.Module, it gets kept track of in its parameters
             self.initial_block = nn.Parameter(torch.randn((1, init_channels, 4, 4)))
 
+        # Conv2D is a weird math function I don't really intuitively understand yet.
         self.initial_conv = nn.Conv2d(filters[0], filters[0], 3, padding=1)
         self.blocks = nn.ModuleList([])
         self.attns = nn.ModuleList([])
