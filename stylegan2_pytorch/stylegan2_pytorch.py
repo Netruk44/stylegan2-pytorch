@@ -44,7 +44,6 @@ except:
 
 import aim
 
-assert torch.cuda.is_available(), 'You need to have an Nvidia GPU with CUDA installed.'
 
 
 # constants
@@ -254,7 +253,7 @@ def calc_pl_lengths(styles, images):
     return (pl_grads ** 2).sum(dim=2).mean(dim=1).sqrt()
 
 def noise(n, latent_dim, device):
-    return torch.randn(n, latent_dim).cuda(device)
+    return torch.randn(n, latent_dim)
 
 def noise_list(n, layers, latent_dim, device):
     return [(noise(n, latent_dim, device), layers)]
@@ -267,7 +266,7 @@ def latent_to_w(style_vectorizer, latent_descr):
     return [(style_vectorizer(z), num_layers) for z, num_layers in latent_descr]
 
 def image_noise(n, im_size, device):
-    return torch.FloatTensor(n, im_size, im_size, 1).uniform_(0., 1.).cuda(device)
+    return torch.FloatTensor(n, im_size, im_size, 1).uniform_(0., 1.)
 
 def leaky_relu(p=0.2):
     return nn.LeakyReLU(p, inplace=True)
@@ -724,7 +723,7 @@ class StyleGAN2(nn.Module):
         self._init_weights()
         self.reset_parameter_averaging()
 
-        self.cuda(rank)
+        self
 
         # startup apex mixed precision
         self.fp16 = fp16
@@ -956,8 +955,8 @@ class Trainer():
             self.init_GAN()
 
         self.GAN.train()
-        total_disc_loss = torch.tensor(0.).cuda(self.rank)
-        total_gen_loss = torch.tensor(0.).cuda(self.rank)
+        total_disc_loss = torch.tensor(0.)
+        total_gen_loss = torch.tensor(0.)
 
         batch_size = math.ceil(self.batch_size / self.world_size)
 
@@ -996,7 +995,7 @@ class Trainer():
                     self.GAN.D_cl(generated_images.clone().detach(), accumulate=True)
 
             for i in range(self.gradient_accumulate_every):
-                image_batch = next(self.loader).cuda(self.rank)
+                image_batch = next(self.loader)
                 self.GAN.D_cl(image_batch, accumulate=True)
 
             loss = self.GAN.D_cl.calculate_loss()
@@ -1032,7 +1031,7 @@ class Trainer():
             generated_images = G(w_styles, noise)
             fake_output, fake_q_loss = D_aug(generated_images.clone().detach(), detach = True, **aug_kwargs)
 
-            image_batch = next(self.loader).cuda(self.rank)
+            image_batch = next(self.loader)
             image_batch.requires_grad_()
             real_output, real_q_loss = D_aug(image_batch, **aug_kwargs)
 
@@ -1086,7 +1085,7 @@ class Trainer():
 
             real_output = None
             if G_requires_reals:
-                image_batch = next(self.loader).cuda(self.rank)
+                image_batch = next(self.loader)
                 real_output, _ = D_aug(image_batch, detach = True, **aug_kwargs)
                 real_output = real_output.detach()
 
@@ -1192,7 +1191,7 @@ class Trainer():
             repeat_idx = [1] * a.dim()
             repeat_idx[dim] = n_tile
             a = a.repeat(*(repeat_idx))
-            order_index = torch.LongTensor(np.concatenate([init_dim * np.arange(n_tile) + i for i in range(init_dim)])).cuda(self.rank)
+            order_index = torch.LongTensor(np.concatenate([init_dim * np.arange(n_tile) + i for i in range(init_dim)]))
             return torch.index_select(a, dim, order_index)
 
         nn = noise(num_rows, latent_dim, device=self.rank)
@@ -1208,7 +1207,6 @@ class Trainer():
     @torch.no_grad()
     def calculate_fid(self, num_batches):
         from pytorch_fid import fid_score
-        torch.cuda.empty_cache()
 
         real_path = self.fid_dir / 'real'
         fake_path = self.fid_dir / 'fake'
@@ -1262,7 +1260,7 @@ class Trainer():
             self.av = np.mean(samples, axis = 0)
             self.av = np.expand_dims(self.av, axis = 0)
 
-        av_torch = torch.from_numpy(self.av).cuda(self.rank)
+        av_torch = torch.from_numpy(self.av)
         tensor = trunc_psi * (tensor - av_torch) + av_torch
         return tensor
 
@@ -1401,7 +1399,6 @@ class ModelLoader:
         self.model.load(load_from)
 
     def noise_to_styles(self, noise, trunc_psi = None):
-        noise = noise.cuda()
         w = self.model.GAN.SE(noise)
         if exists(trunc_psi):
             w = self.model.truncate_style(w)
