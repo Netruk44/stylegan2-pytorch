@@ -1,1 +1,1 @@
-__version__ = '1.8.2-nocuda'
+__version__ = '1.9.0-nocuda'
