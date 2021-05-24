@@ -103,9 +103,8 @@ def rand_zoom(x, ratio=0.25, maintain_aspect=True):
         value_w = random.randint(min_w, w)
         value_x = random.randint(0, w - value_w)
         
-        # TODO: What if the image isn't as tall as it is wide?
         if maintain_aspect:
-            value_h = int(value_w * (float(w) / float(h)))
+            value_h = int(value_w * (float(h) / float(w)))
         else:
             value_h = random.randint(min_h, h)
         value_y = random.randint(0, h - value_h)
