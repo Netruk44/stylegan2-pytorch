@@ -92,7 +92,7 @@ def rand_cutout(x, ratio=0.5):
     x = x * mask.unsqueeze(1)
     return x
 
-def rand_zoom(x, ratio=0.5, maintain_aspect=True):
+def rand_zoom(x, ratio=0.25, maintain_aspect=True):
     w, h = x.size(2), x.size(3)
 
     imgs = []
