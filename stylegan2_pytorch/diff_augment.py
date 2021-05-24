@@ -111,7 +111,7 @@ def rand_zoom(x, ratio=0.5, maintain_aspect=True):
         
         crop = img[:, value_x:value_x+value_w, value_y:value_y+value_h]
         crop = crop.unsqueeze(0)
-        crop = torch.nn.functional.interpolate(crop, (w, h), mode='bilinear')
+        crop = torch.nn.functional.interpolate(crop, (w, h), mode='bilinear', align_corners=True)
         crop = crop.squeeze()
         imgs.append(crop)
 
