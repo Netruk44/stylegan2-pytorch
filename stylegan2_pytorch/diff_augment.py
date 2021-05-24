@@ -92,6 +92,31 @@ def rand_cutout(x, ratio=0.5):
     x = x * mask.unsqueeze(1)
     return x
 
+def rand_zoom(x, ratio=0.5, maintain_aspect=True):
+    w, h = x.size(2), x.size(3)
+
+    imgs = []
+    for img in x.unbind(dim = 0):
+        min_w = int(w * ratio)
+        min_h = int(h * ratio)
+
+        value_w = random.randint(min_w, w)
+        value_x = random.randint(0, w - value_w)
+        
+        if maintain_aspect:
+            value_h = int(value_w * (float(w) / float(h)))
+        else:
+            value_h = random.randint(min_h, h)
+        value_y = random.randint(0, h - value_h)
+        
+        crop = img[:, value_x:value_x+value_w, value_y:value_y+value_h]
+        crop = crop.unsqueeze(0)
+        crop = torch.nn.functional.interpolate(crop, (w, h), mode='bilinear')
+        crop = crop.squeeze()
+        imgs.append(crop)
+
+    return torch.stack(imgs)
+
 AUGMENT_FNS = {
     'color': [rand_brightness, rand_saturation, rand_contrast],
     'offset': [rand_offset],
@@ -99,4 +124,5 @@ AUGMENT_FNS = {
     'offset_v': [rand_offset_v],
     'translation': [rand_translation],
     'cutout': [rand_cutout],
+    'zoom': [rand_zoom]
 }
