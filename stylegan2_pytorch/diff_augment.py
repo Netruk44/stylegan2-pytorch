@@ -21,12 +21,12 @@ def DiffAugment(x, types=[]):
 # """
 
 def rand_brightness(x):
-    x = x + (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5)
+    x = x + (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5) * .65
     return x
 
 def rand_saturation(x):
     x_mean = x.mean(dim=1, keepdim=True)
-    x = (x - x_mean) * (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) * 2) + x_mean
+    x = (x - x_mean) * (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) + 0.5) + x_mean
     return x
 
 def rand_contrast(x):
