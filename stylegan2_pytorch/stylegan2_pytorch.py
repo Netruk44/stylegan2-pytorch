@@ -24,7 +24,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from einops import rearrange, repeat
-from kornia.filters import filter2D
+from kornia.filters import filter2d as filter2D
 
 import torchvision
 from torchvision import transforms
