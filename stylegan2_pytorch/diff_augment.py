@@ -127,5 +127,6 @@ AUGMENT_FNS = {
     'translation': [rand_translation],
     'cutout': [rand_cutout],
     'zoom': [partial(rand_zoom, ratio=0.25)],
-    'lightzoom': [partial(rand_zoom, ratio=0.65)]
+    'lightzoom': [partial(rand_zoom, ratio=0.65)],
+    'xlightzoom': [partial(rand_zoom, ratio=0.85)]
 }
