@@ -920,9 +920,9 @@ class Trainer():
 
         self.logger = aim.Session(experiment=name) if log else None
 
-        self.lookahead_k = 5,
-        self.beta_ema=0.9999,
-        self.lookahead_alpha=0.5,
+        self.lookahead_k = lookahead_k
+        self.beta_ema = beta_ema
+        self.lookahead_alpha = lookahead_alpha
 
     @property
     def image_extension(self):
