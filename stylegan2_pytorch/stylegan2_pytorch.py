@@ -285,6 +285,40 @@ def slerp(val, low, high):
     res = (torch.sin((1.0 - val) * omega) / so).unsqueeze(1) * low + (torch.sin(val * omega) / so).unsqueeze(1) * high
     return res
 
+# lookahead
+class Lookahead(torch.optim.Optimizer):
+    def __init__(self, optimizer, alpha=0.5):
+        self.optimizer = optimizer
+        self.alpha = alpha
+        self.param_groups = self.optimizer.param_groups
+        self.state = defaultdict(dict)
+
+    def lookahead_step(self):
+        for group in self.param_groups:
+            for fast in group["params"]:
+                param_state = self.state[fast]
+                if "slow_params" not in param_state:
+                    param_state["slow_params"] = torch.zeros_like(fast.data)
+                    param_state["slow_params"].copy_(fast.data)
+                slow = param_state["slow_params"]
+                # slow <- slow + alpha * (fast - slow)
+                slow += (fast.data - slow) * self.alpha
+                fast.data.copy_(slow)
+
+    def step(self, closure = None):
+        loss = self.optimizer.step(closure)
+        return loss
+
+def update_ema_gen(G, G_ema, beta_ema = 0.9999):
+    # TODO: Try removing this and using the pre-existing EMA updates.
+    l_param = list(G.parameters())
+    l_ema_param = list(G_ema.parameters())
+
+    for i in range(len(l_param)):
+        with torch.no_grad():
+            l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
+                                .add(l_param[i].data.mul(1-beta_ema)))
+
 # losses
 
 def gen_hinge_loss(fake, real):
@@ -346,38 +380,6 @@ def resize_to_minimum_size(min_size, image):
     if max(*image.size) < min_size:
         return torchvision.transforms.functional.resize(image, min_size)
     return image
-
-class Lookahead(torch.optim.Optimizer):
-    def __init__(self, optimizer, alpha=0.5):
-        self.optimizer = optimizer
-        self.alpha = alpha
-        self.param_groups = self.optimizer.param_groups
-        self.state = defaultdict(dict)
-
-    def lookahead_step(self):
-        for group in self.param_groups:
-            for fast in group["params"]:
-                param_state = self.state[fast]
-                if "slow_params" not in param_state:
-                    param_state["slow_params"] = torch.zeros_like(fast.data)
-                    param_state["slow_params"].copy_(fast.data)
-                slow = param_state["slow_params"]
-                # slow <- slow + alpha * (fast - slow)
-                slow += (fast.data - slow) * self.alpha
-                fast.data.copy_(slow)
-
-    def step(self, closure = None):
-        loss = self.optimizer.step(closure)
-        return loss
-
-def update_ema_gen(G, G_ema, beta_ema = 0.9999):
-    l_param = list(G.parameters())
-    l_ema_param = list(G_ema.parameters())
-
-    for i in range(len(l_param)):
-        with torch.no_grad():
-            l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
-                                .add(l_param[i].data.mul(1-beta_ema)))
 
 class Dataset(data.Dataset):
     def __init__(self, folder, image_size, transparent = False, aug_prob = 0.):
@@ -1159,7 +1161,8 @@ class Trainer():
             # Joint lookahead update
             self.GAN.D_opt.lookahead_step()
             self.GAN.G_opt.lookahead_step()
-            update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
+            #update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
+            self.GAN.EMA()
 
         # calculate moving averages
 
@@ -1170,8 +1173,8 @@ class Trainer():
         #if self.is_main and self.steps % 10 == 0 and self.steps > 20000:
         #    self.GAN.EMA()
 
-        if self.is_main and self.steps <= 25000 and self.steps % 1000 == 2:
-            self.GAN.reset_parameter_averaging()
+        #if self.is_main and self.steps <= 25000 and self.steps % 1000 == 2:
+        #    self.GAN.reset_parameter_averaging()
 
         # save from NaN errors
 
