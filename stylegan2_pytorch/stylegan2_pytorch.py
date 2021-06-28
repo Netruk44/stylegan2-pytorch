@@ -4,6 +4,7 @@ import math
 import fire
 import json
 
+from collections import defaultdict
 from tqdm import tqdm
 from math import floor, log2
 from random import random
@@ -346,6 +347,38 @@ def resize_to_minimum_size(min_size, image):
         return torchvision.transforms.functional.resize(image, min_size)
     return image
 
+class Lookahead(torch.optim.Optimizer):
+    def __init__(self, optimizer, alpha=0.5):
+        self.optimizer = optimizer
+        self.alpha = alpha
+        self.param_groups = self.optimizer.param_groups
+        self.state = defaultdict(dict)
+
+    def lookahead_step(self):
+        for group in self.param_groups:
+            for fast in group["params"]:
+                param_state = self.state[fast]
+                if "slow_params" not in param_state:
+                    param_state["slow_params"] = torch.zeros_like(fast.data)
+                    param_state["slow_params"].copy_(fast.data)
+                slow = param_state["slow_params"]
+                # slow <- slow + alpha * (fast - slow)
+                slow += (fast.data - slow) * self.alpha
+                fast.data.copy_(slow)
+
+    def step(self, closure = None):
+        loss = self.optimizer.step(closure)
+        return loss
+
+def update_ema_gen(G, G_ema, beta_ema = 0.9999):
+    l_param = list(G.parameters())
+    l_ema_param = list(G_ema.parameters())
+
+    for i in range(len(l_param)):
+        with torch.no_grad():
+            l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
+                                .add(l_param[i].data.mul(1-beta_ema)))
+
 class Dataset(data.Dataset):
     def __init__(self, folder, image_size, transparent = False, aug_prob = 0.):
         super().__init__()
@@ -677,7 +710,7 @@ class Discriminator(nn.Module):
         return x.squeeze(), quantize_loss
 
 class StyleGAN2(nn.Module):
-    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0):
+    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0, lookahead_alpha=0.5):
         super().__init__()
         self.lr = lr
         self.steps = steps
@@ -709,6 +742,10 @@ class StyleGAN2(nn.Module):
         generator_params = list(self.G.parameters()) + list(self.S.parameters())
         self.G_opt = Adam(generator_params, lr = self.lr, betas=(0.5, 0.9))
         self.D_opt = Adam(self.D.parameters(), lr = self.lr * ttur_mult, betas=(0.5, 0.9))
+
+        # Wrap optimizers with the lookahead optimizer
+        self.G_opt = Lookahead(self.G_opt, alpha=lookahead_alpha)
+        self.D_opt = Lookahead(self.D_opt, alpha=lookahead_alpha)
 
         # init weights
         self._init_weights()
@@ -792,6 +829,9 @@ class Trainer():
         rank = 0,
         world_size = 1,
         log = False,
+        lookahead_k = 5,
+        beta_ema=0.9999,
+        lookahead_alpha=0.5,
         *args,
         **kwargs
     ):
@@ -879,6 +919,10 @@ class Trainer():
         self.world_size = world_size
 
         self.logger = aim.Session(experiment=name) if log else None
+
+        self.lookahead_k = 5,
+        self.beta_ema=0.9999,
+        self.lookahead_alpha=0.5,
 
     @property
     def image_extension(self):
@@ -1111,14 +1155,20 @@ class Trainer():
 
         self.GAN.G_opt.step()
 
+        if (self.steps + 1) % self.lookahead_k == 0:
+            # Joint lookahead update
+            self.GAN.D_opt.lookahead_step()
+            self.GAN.G_opt.lookahead_step()
+            update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
+
         # calculate moving averages
 
         if apply_path_penalty and not np.isnan(avg_pl_length):
             self.pl_mean = self.pl_length_ma.update_average(self.pl_mean, avg_pl_length)
             self.track(self.pl_mean, 'PL')
 
-        if self.is_main and self.steps % 10 == 0 and self.steps > 20000:
-            self.GAN.EMA()
+        #if self.is_main and self.steps % 10 == 0 and self.steps > 20000:
+        #    self.GAN.EMA()
 
         if self.is_main and self.steps <= 25000 and self.steps % 1000 == 2:
             self.GAN.reset_parameter_averaging()
