@@ -831,9 +831,9 @@ class Trainer():
         rank = 0,
         world_size = 1,
         log = False,
+        lookahead_alpha=0.5,
         lookahead_k = 5,
         beta_ema=0.9999,
-        lookahead_alpha=0.5,
         *args,
         **kwargs
     ):
