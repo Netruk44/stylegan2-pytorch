@@ -712,7 +712,7 @@ class Discriminator(nn.Module):
         return x.squeeze(), quantize_loss
 
 class StyleGAN2(nn.Module):
-    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0, lookahead_alpha=0.5):
+    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0, lookahead=False, lookahead_alpha=0.5):
         super().__init__()
         self.lr = lr
         self.steps = steps
@@ -745,9 +745,10 @@ class StyleGAN2(nn.Module):
         self.G_opt = Adam(generator_params, lr = self.lr, betas=(0.5, 0.9))
         self.D_opt = Adam(self.D.parameters(), lr = self.lr * ttur_mult, betas=(0.5, 0.9))
 
-        # Wrap optimizers with the lookahead optimizer
-        self.G_opt = Lookahead(self.G_opt, alpha=lookahead_alpha)
-        self.D_opt = Lookahead(self.D_opt, alpha=lookahead_alpha)
+        if lookahead:
+            # Wrap optimizers with the lookahead optimizer
+            self.G_opt = Lookahead(self.G_opt, alpha=lookahead_alpha)
+            self.D_opt = Lookahead(self.D_opt, alpha=lookahead_alpha)
 
         # init weights
         self._init_weights()
@@ -831,6 +832,7 @@ class Trainer():
         rank = 0,
         world_size = 1,
         log = False,
+        lookahead = False,
         lookahead_alpha=0.5,
         lookahead_k = 5,
         beta_ema=0.9999,
@@ -922,6 +924,7 @@ class Trainer():
 
         self.logger = aim.Session(experiment=name) if log else None
 
+        self.lookahead = lookahead
         self.lookahead_k = lookahead_k
         self.beta_ema = beta_ema
         self.lookahead_alpha = lookahead_alpha
@@ -940,7 +943,7 @@ class Trainer():
         
     def init_GAN(self):
         args, kwargs = self.GAN_params
-        self.GAN = StyleGAN2(lr = self.lr, lr_mlp = self.lr_mlp, ttur_mult = self.ttur_mult, image_size = self.image_size, network_capacity = self.network_capacity, fmap_max = self.fmap_max, transparent = self.transparent, fq_layers = self.fq_layers, fq_dict_size = self.fq_dict_size, attn_layers = self.attn_layers, fp16 = self.fp16, cl_reg = self.cl_reg, no_const = self.no_const, rank = self.rank, *args, **kwargs)
+        self.GAN = StyleGAN2(lr = self.lr, lr_mlp = self.lr_mlp, ttur_mult = self.ttur_mult, image_size = self.image_size, network_capacity = self.network_capacity, fmap_max = self.fmap_max, transparent = self.transparent, fq_layers = self.fq_layers, fq_dict_size = self.fq_dict_size, attn_layers = self.attn_layers, fp16 = self.fp16, cl_reg = self.cl_reg, no_const = self.no_const, rank = self.rank, lookahead=self.lookahead, lookahead_alpha=self.lookahead_alpha, *args, **kwargs)
 
         if self.is_ddp:
             ddp_kwargs = {'device_ids': [self.rank]}
@@ -1157,24 +1160,24 @@ class Trainer():
 
         self.GAN.G_opt.step()
 
-        if (self.steps + 1) % self.lookahead_k == 0:
+        # calculate moving averages
+        if self.lookahead and (self.steps + 1) % self.lookahead_k == 0:
             # Joint lookahead update
             self.GAN.D_opt.lookahead_step()
             self.GAN.G_opt.lookahead_step()
-            #update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
-            self.GAN.EMA()
 
-        # calculate moving averages
+            if self.is_main():
+                self.GAN.EMA()
 
         if apply_path_penalty and not np.isnan(avg_pl_length):
             self.pl_mean = self.pl_length_ma.update_average(self.pl_mean, avg_pl_length)
             self.track(self.pl_mean, 'PL')
 
-        #if self.is_main and self.steps % 10 == 0 and self.steps > 20000:
-        #    self.GAN.EMA()
+        if self.is_main and not self.lookahead and self.steps % 10 == 0 and self.steps > 20000:
+            self.GAN.EMA()
 
-        #if self.is_main and self.steps <= 25000 and self.steps % 1000 == 2:
-        #    self.GAN.reset_parameter_averaging()
+        if self.is_main and not self.lookahead and self.steps <= 25000 and self.steps % 1000 == 2:
+            self.GAN.reset_parameter_averaging()
 
         # save from NaN errors
 
