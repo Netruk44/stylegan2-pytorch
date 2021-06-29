@@ -1,5 +1,5 @@
+from functools import partial
 import random
-
 import torch
 import torch.nn.functional as F
 
@@ -8,7 +8,7 @@ def DiffAugment(x, types=[]):
     for p in types:
         for f in AUGMENT_FNS[p]:
             x = f(x)
-    return x.contiguous()
+    return x.contiguous(memory_format = torch.contiguous_format)
 
 
 # """
@@ -20,18 +20,18 @@ def DiffAugment(x, types=[]):
 # 3 - height of image
 # """
 
-def rand_brightness(x):
-    x = x + (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5) * .65
+def rand_brightness(x, scale):
+    x = x + (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5) * scale
     return x
 
-def rand_saturation(x):
+def rand_saturation(x, scale):
     x_mean = x.mean(dim=1, keepdim=True)
-    x = (x - x_mean) * (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) + 0.5) + x_mean
+    x = (x - x_mean) * (((torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5) * 2.0 * scale) + 1.0) + x_mean
     return x
 
-def rand_contrast(x):
+def rand_contrast(x, scale):
     x_mean = x.mean(dim=[1, 2, 3], keepdim=True)
-    x = (x - x_mean) * (torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) + 0.5) + x_mean
+    x = (x - x_mean) * (((torch.rand(x.size(0), 1, 1, 1, dtype=x.dtype, device=x.device) - 0.5) * 2.0 * scale) + 1.0) + x_mean
     return x
 
 def rand_translation(x, ratio=0.125):
@@ -46,7 +46,7 @@ def rand_translation(x, ratio=0.125):
     grid_x = torch.clamp(grid_x + translation_x + 1, 0, x.size(2) + 1)
     grid_y = torch.clamp(grid_y + translation_y + 1, 0, x.size(3) + 1)
     x_pad = F.pad(x, [1, 1, 1, 1, 0, 0, 0, 0])
-    x = x_pad.permute(0, 2, 3, 1).contiguous()[grid_batch, grid_x, grid_y].permute(0, 3, 1, 2)
+    x = x_pad.permute(0, 2, 3, 1).contiguous()[grid_batch, grid_x, grid_y].permute(0, 3, 1, 2).contiguous(memory_format = torch.contiguous_format)
     return x
 
 def rand_offset(x, ratio=1, ratio_h=1, ratio_v=1):
@@ -118,11 +118,15 @@ def rand_zoom(x, ratio=0.25, maintain_aspect=True):
     return torch.stack(imgs)
 
 AUGMENT_FNS = {
-    'color': [rand_brightness, rand_saturation, rand_contrast],
+    'color': [partial(rand_brightness, scale=1.), partial(rand_saturation, scale=1.), partial(rand_contrast, scale=0.5)],
+    'lightcolor': [partial(rand_brightness, scale=0.65), partial(rand_saturation, scale=.5), partial(rand_contrast, scale=0.5)],
+    'xlightcolor': [partial(rand_brightness, scale=0.25), partial(rand_saturation, scale=.25), partial(rand_contrast, scale=0.25)],
     'offset': [rand_offset],
     'offset_h': [rand_offset_h],
     'offset_v': [rand_offset_v],
     'translation': [rand_translation],
     'cutout': [rand_cutout],
-    'zoom': [rand_zoom]
+    'zoom': [partial(rand_zoom, ratio=0.25)],
+    'lightzoom': [partial(rand_zoom, ratio=0.65)],
+    'xlightzoom': [partial(rand_zoom, ratio=0.85)]
 }
