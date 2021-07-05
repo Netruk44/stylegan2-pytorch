@@ -1204,6 +1204,12 @@ class Trainer():
         image_size = self.GAN.G.image_size
         num_layers = self.GAN.G.num_layers
 
+        def save_image_without_overwrite(images, output_file, nrow):
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            
+            torchvision.utils.save_image(images, output_file, nrow=nrow)
+
         # latents and noise
 
         latents = noise_list(num_rows ** 2, num_layers, latent_dim, device=self.rank)
@@ -1212,12 +1218,12 @@ class Trainer():
         # regular
 
         generated_images = self.generate_truncated(self.GAN.S, self.GAN.G, latents, n, trunc_psi = self.trunc_psi)
-        torchvision.utils.save_image(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
+        save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
         
         # moving averages
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, latents, n, trunc_psi = self.trunc_psi)
-        torchvision.utils.save_image(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
+        save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
 
         # mixing regularities
 
@@ -1237,7 +1243,7 @@ class Trainer():
         mixed_latents = [(tmp1, tt), (tmp2, num_layers - tt)]
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, mixed_latents, n, trunc_psi = self.trunc_psi)
-        torchvision.utils.save_image(generated_images, str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'), nrow=num_rows)
+        save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'), nrow=num_rows)
 
     @torch.no_grad()
     def calculate_fid(self, num_batches):
