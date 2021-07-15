@@ -706,7 +706,7 @@ class StyleGAN2(nn.Module):
         super().__init__()
         self.lr = lr
         self.steps = steps
-        self.ema_updater = EMA(0.995)
+        self.ema_updater = EMA(0.9999)
 
         self.S = StyleVectorizer(latent_dim, style_depth, lr_mul = lr_mlp)
         self.G = Generator(image_size, latent_dim, network_capacity, transparent = transparent, attn_layers = attn_layers, no_const = no_const, fmap_max = fmap_max)
