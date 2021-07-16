@@ -702,11 +702,11 @@ class Discriminator(nn.Module):
         return x.squeeze(), quantize_loss
 
 class StyleGAN2(nn.Module):
-    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0, lookahead=False, lookahead_alpha=0.5):
+    def __init__(self, image_size, latent_dim = 512, fmap_max = 512, style_depth = 8, network_capacity = 16, transparent = False, fp16 = False, cl_reg = False, steps = 1, lr = 1e-4, ttur_mult = 2, fq_layers = [], fq_dict_size = 256, attn_layers = [], no_const = False, lr_mlp = 0.1, rank = 0, lookahead=False, lookahead_alpha=0.5, ema_beta = 0.9999):
         super().__init__()
         self.lr = lr
         self.steps = steps
-        self.ema_updater = EMA(0.9999)
+        self.ema_updater = EMA(ema_beta)
 
         self.S = StyleVectorizer(latent_dim, style_depth, lr_mul = lr_mlp)
         self.G = Generator(image_size, latent_dim, network_capacity, transparent = transparent, attn_layers = attn_layers, no_const = no_const, fmap_max = fmap_max)
@@ -825,6 +825,7 @@ class Trainer():
         lookahead = False,
         lookahead_alpha=0.5,
         lookahead_k = 5,
+        ema_beta = 0.9999,
         *args,
         **kwargs
     ):
@@ -916,6 +917,8 @@ class Trainer():
         self.lookahead = lookahead
         self.lookahead_k = lookahead_k
         self.lookahead_alpha = lookahead_alpha
+        
+        self.ema_beta = ema_beta
 
     @property
     def image_extension(self):
@@ -931,7 +934,7 @@ class Trainer():
         
     def init_GAN(self):
         args, kwargs = self.GAN_params
-        self.GAN = StyleGAN2(lr = self.lr, lr_mlp = self.lr_mlp, ttur_mult = self.ttur_mult, image_size = self.image_size, network_capacity = self.network_capacity, fmap_max = self.fmap_max, transparent = self.transparent, fq_layers = self.fq_layers, fq_dict_size = self.fq_dict_size, attn_layers = self.attn_layers, fp16 = self.fp16, cl_reg = self.cl_reg, no_const = self.no_const, rank = self.rank, lookahead=self.lookahead, lookahead_alpha=self.lookahead_alpha, *args, **kwargs)
+        self.GAN = StyleGAN2(lr = self.lr, lr_mlp = self.lr_mlp, ttur_mult = self.ttur_mult, image_size = self.image_size, network_capacity = self.network_capacity, fmap_max = self.fmap_max, transparent = self.transparent, fq_layers = self.fq_layers, fq_dict_size = self.fq_dict_size, attn_layers = self.attn_layers, fp16 = self.fp16, cl_reg = self.cl_reg, no_const = self.no_const, rank = self.rank, lookahead=self.lookahead, lookahead_alpha=self.lookahead_alpha, ema_beta=self.ema_beta, *args, **kwargs)
 
         if self.is_ddp:
             ddp_kwargs = {'device_ids': [self.rank]}
