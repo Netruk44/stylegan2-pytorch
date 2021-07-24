@@ -768,7 +768,9 @@ class Trainer():
         rel_disc_loss = False,
         num_workers = None,
         save_every = 1000,
+        save_callback = None,
         evaluate_every = 1000,
+        evaluate_callback = None,
         num_image_tiles = 8,
         trunc_psi = 0.6,
         fp16 = False,
@@ -833,7 +835,9 @@ class Trainer():
 
         self.num_image_tiles = num_image_tiles
         self.evaluate_every = evaluate_every
+        self.evaluate_callback = evaluate_callback
         self.save_every = save_every
+        self.save_callback = save_callback
         self.steps = 0
 
         self.av = None
@@ -1195,6 +1199,9 @@ class Trainer():
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, mixed_latents, n, trunc_psi = self.trunc_psi)
         torchvision.utils.save_image(generated_images, str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'), nrow=num_rows)
 
+        if self.evaluate_callback is not None:
+            self.evaluate_callback(str(self.results_dir / self.name / f'{str(num)}.{ext}'), str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'))
+
     @torch.no_grad()
     def calculate_fid(self, num_batches):
         from pytorch_fid import fid_score
@@ -1357,6 +1364,9 @@ class Trainer():
 
         torch.save(save_data, self.model_name(num))
         self.write_config()
+
+        if self.save_callback is not None:
+            self.save_callback(self.model_name(num))
 
     def load(self, num = -1):
         self.load_config()
