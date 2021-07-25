@@ -114,6 +114,7 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
     model_args.pop('upload_models', None)
     model_args.pop('upload_every', None)
     model_args.pop('delete_old_models', None)
+    model_args.pop('account_url', None)
     model_args.pop('credential', None)
     model_args.pop('container_name', None)
 
