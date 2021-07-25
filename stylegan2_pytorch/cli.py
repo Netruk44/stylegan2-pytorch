@@ -103,8 +103,8 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
 
     if is_main:
       if _upload_models:
-        _blob_service_client = BlobServiceClient(account_url=model_args.account_url, credential=model_args.credential)
-        _container_client = _blob_service_client.get_container_client(model_args.container_name)
+        _blob_service_client = BlobServiceClient(account_url=model_args['account_url'], credential=model_args['credential'])
+        _container_client = _blob_service_client.get_container_client(model_args['container_name'])
 
       model_args['save_callback'] = on_model_save
       
