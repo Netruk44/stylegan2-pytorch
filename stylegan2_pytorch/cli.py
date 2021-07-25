@@ -108,9 +108,9 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
 
       model_args['save_callback'] = on_model_save
       
-      model_args.pop('account_url', None)
-      model_args.pop('credential', None)
-      model_args.pop('container_name', None)
+    model_args.pop('account_url', None)
+    model_args.pop('credential', None)
+    model_args.pop('container_name', None)
 
     model = Trainer(**model_args)
 
