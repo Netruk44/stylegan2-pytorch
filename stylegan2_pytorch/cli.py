@@ -1,6 +1,7 @@
 import os
 import fire
 import random
+import re
 from retry.api import retry_call
 from tqdm import tqdm
 from datetime import datetime
@@ -12,6 +13,55 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 
 import numpy as np
+
+from azure.storage.blob import BlobServiceClient
+
+_blob_service_client = None
+_container_client = None
+_delete_old_models = False
+_upload_models = False
+_upload_every = 10
+
+def on_model_save(model_path):
+  global _blob_service_client
+  global _container_client
+  global _delete_old_models
+  global _upload_models
+  global _upload_every
+
+  file_path, file_name = os.path.split(model_path)
+  model_name = os.path.split(file_path)[0]
+
+  # Delete old models, leaving just what was passed in
+  if _delete_old_models:
+    for i in os.listdir(file_path):
+      # Skip unexpected files
+      if not i.startswith('model_') or not i.endswith('.pt'):
+        print(f'Skipping delete of {i} (not model file)')
+        continue
+
+      # Skip the current model file
+      if model_path.endswith(i):
+        print(f'Skipping delete of {i} (current epoch)')
+        continue
+      
+      print(f'Deleting {i}')
+      try:
+        os.remove(f'{file_path}/{i}')
+      except OSError as e:
+        print(f'Caught exception: {e}')
+
+  if _upload_models:
+    model_num = int(re.match(r'model_(\d+).pt', file_name).groups(1)[0])
+    if (model_num % _upload_every) == 0:
+      dest_path = f'{model_name}/{file_name}'
+      blob_client = _container_client.get_blob_client(dest_path)
+
+      print(f'Uploading to {dest_path}')
+      with open(model_path, "rb") as data:
+        blob_client.upload_blob(data)
+    else:
+      print('Skipping upload')
 
 def cast_list(el):
     return el if isinstance(el, list) else [el]
@@ -29,6 +79,11 @@ def set_seed(seed):
     random.seed(seed)
 
 def run_training(rank, world_size, model_args, data, load_from, new, num_train_steps, name, seed):
+    global _blob_service_client
+    global _container_client
+    global _delete_old_models
+    global _upload_models
+    global _upload_every
     is_main = rank == 0
     is_ddp = world_size > 1
 
@@ -54,6 +109,13 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
         model.clear()
 
     model.set_data_src(data)
+
+    if is_main:
+      if _upload_models:
+        _blob_service_client = BlobServiceClient(account_url=model_args.account_url, credential=model_args.credential)
+        _container_client = _blob_service_client.get_container_client(model_args.container_name)
+
+      model_args['save_callback'] = on_model_save
 
     progress_bar = tqdm(initial = model.steps, total = num_train_steps, mininterval=10., desc=f'{name}<{data}>')
     while model.steps < num_train_steps:
@@ -123,7 +185,21 @@ def train_from_folder(
     lookahead_alpha=0.5,
     lookahead_k = 5,
     ema_beta = 0.9999,
+
+    # Vast.ai settings
+    delete_old_models = True,
+    upload_models = True,
+    upload_every = 10,
+    account_url = '',
+    credential = '',
+    container_name = '',
 ):
+    global _blob_service_client
+    global _container_client
+    global _delete_old_models
+    global _upload_models
+    global _upload_every
+
     model_args = dict(
         name = name,
         results_dir = results_dir,
@@ -167,8 +243,17 @@ def train_from_folder(
         lookahead = lookahead,
         lookahead_alpha = lookahead_alpha,
         lookahead_k = lookahead_k,
-        ema_beta = ema_beta
+        ema_beta = ema_beta,
+
+        # Vast.ai settings
+        account_url = account_url,
+        credential = credential,
+        container_name = container_name,
     )
+
+    _delete_old_models = delete_old_models
+    _upload_models = upload_models
+    _upload_every = upload_every
 
     if generate:
         model = Trainer(**model_args)
