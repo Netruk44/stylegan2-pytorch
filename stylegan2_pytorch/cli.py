@@ -107,8 +107,13 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
         _container_client = _blob_service_client.get_container_client(model_args['container_name'])
 
       model_args['save_callback'] = on_model_save
+      _upload_models = model_args['upload_models']
+      _upload_every = model_args['upload_every']
+      _delete_old_models = model_args['delete_old_models']
       
-    model_args.pop('account_url', None)
+    model_args.pop('upload_models', None)
+    model_args.pop('upload_every', None)
+    model_args.pop('delete_old_models', None)
     model_args.pop('credential', None)
     model_args.pop('container_name', None)
 
@@ -250,14 +255,13 @@ def train_from_folder(
         ema_beta = ema_beta,
 
         # Vast.ai settings
+        delete_old_models = delete_old_models,
+        upload_models = upload_models,
+        upload_every = upload_every,
         account_url = account_url,
         credential = credential,
         container_name = container_name,
     )
-
-    _delete_old_models = delete_old_models
-    _upload_models = upload_models
-    _upload_every = upload_every
 
     if generate:
         model = Trainer(**model_args)
