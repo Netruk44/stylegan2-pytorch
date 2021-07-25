@@ -30,7 +30,7 @@ def on_model_save(model_path):
   global _upload_every
 
   file_path, file_name = os.path.split(model_path)
-  model_name = os.path.split(file_path)[0]
+  model_name = os.path.split(file_path)[1]
 
   # Delete old models, leaving just what was passed in
   if _delete_old_models:
