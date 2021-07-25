@@ -101,6 +101,17 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
         world_size = world_size
     )
 
+    if is_main:
+      if _upload_models:
+        _blob_service_client = BlobServiceClient(account_url=model_args.account_url, credential=model_args.credential)
+        _container_client = _blob_service_client.get_container_client(model_args.container_name)
+
+      model_args['save_callback'] = on_model_save
+      
+      model_args.pop('account_url', None)
+      model_args.pop('credential', None)
+      model_args.pop('container_name', None)
+
     model = Trainer(**model_args)
 
     if not new:
@@ -109,13 +120,6 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
         model.clear()
 
     model.set_data_src(data)
-
-    if is_main:
-      if _upload_models:
-        _blob_service_client = BlobServiceClient(account_url=model_args.account_url, credential=model_args.credential)
-        _container_client = _blob_service_client.get_container_client(model_args.container_name)
-
-      model_args['save_callback'] = on_model_save
 
     progress_bar = tqdm(initial = model.steps, total = num_train_steps, mininterval=10., desc=f'{name}<{data}>')
     while model.steps < num_train_steps:
