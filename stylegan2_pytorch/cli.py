@@ -38,15 +38,12 @@ def on_model_save(model_path):
     for i in os.listdir(file_path):
       # Skip unexpected files
       if not i.startswith('model_') or not i.endswith('.pt'):
-        print(f'Skipping delete of {i} (not model file)')
         continue
 
       # Skip the current model file
       if model_path.endswith(i):
-        print(f'Skipping delete of {i} (current epoch)')
         continue
       
-      print(f'Deleting {i}')
       try:
         os.remove(f'{file_path}/{i}')
       except OSError as e:
@@ -64,8 +61,6 @@ def on_model_save(model_path):
           blob_client.upload_blob(data)
       except ResourceExistsError:
         pass
-    else:
-      print('Skipping upload')
 
 def cast_list(el):
     return el if isinstance(el, list) else [el]
