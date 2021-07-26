@@ -71,10 +71,11 @@ def debug(sig, frame):
     d.update(frame.f_globals)  # Unless shadowed by global
     d.update(frame.f_locals)
 
-    i = code.InteractiveConsole(d)
+    #i = code.InteractiveConsole(d)
     message  = "Signal received : entering python shell.\nTraceback:\n"
     message += ''.join(traceback.format_stack(frame))
-    i.interact(message)
+    #i.interact(message)
+    print(message)
 
 def listen():
     signal.signal(signal.SIGUSR1, debug)  # Register handler
