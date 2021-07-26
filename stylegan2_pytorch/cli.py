@@ -62,6 +62,23 @@ def on_model_save(model_path):
       except ResourceExistsError:
         pass
 
+import code, traceback, signal
+
+def debug(sig, frame):
+    """Interrupt running process, and provide a python prompt for
+    interactive debugging."""
+    d={'_frame':frame}         # Allow access to frame object.
+    d.update(frame.f_globals)  # Unless shadowed by global
+    d.update(frame.f_locals)
+
+    i = code.InteractiveConsole(d)
+    message  = "Signal received : entering python shell.\nTraceback:\n"
+    message += ''.join(traceback.format_stack(frame))
+    i.interact(message)
+
+def listen():
+    signal.signal(signal.SIGUSR1, debug)  # Register handler
+
 def cast_list(el):
     return el if isinstance(el, list) else [el]
 
@@ -85,6 +102,8 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
     global _upload_every
     is_main = rank == 0
     is_ddp = world_size > 1
+
+    listen()
 
     if is_ddp:
         set_seed(seed)
