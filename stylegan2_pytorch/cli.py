@@ -14,6 +14,7 @@ import torch.distributed as dist
 
 import numpy as np
 
+from azure.core.exceptions import ResourceExistsError
 from azure.storage.blob import BlobServiceClient
 
 _blob_service_client = None
@@ -58,8 +59,11 @@ def on_model_save(model_path):
       blob_client = _container_client.get_blob_client(dest_path)
 
       print(f'Uploading to {dest_path}')
-      with open(model_path, "rb") as data:
-        blob_client.upload_blob(data)
+      try:
+        with open(model_path, "rb") as data:
+          blob_client.upload_blob(data)
+      except ResourceExistsError:
+        pass
     else:
       print('Skipping upload')
 
