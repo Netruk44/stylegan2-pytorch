@@ -1178,6 +1178,7 @@ class Trainer():
 
             if self.is_main:
                 update_ema_gen(self.GAN.G, self.GAN.GE, self.ema_beta)
+                update_ema_gen(self.GAN.S, self.GAN.SE, self.ema_beta)
 
         if apply_path_penalty and not np.isnan(avg_pl_length):
             self.pl_mean = self.pl_length_ma.update_average(self.pl_mean, avg_pl_length)
