@@ -706,7 +706,7 @@ class StyleGAN2(nn.Module):
         super().__init__()
         self.lr = lr
         self.steps = steps
-        self.ema_updater = EMA(ema_beta)
+        self.ema_beta = ema_beta
 
         self.S = StyleVectorizer(latent_dim, style_depth, lr_mul = lr_mlp)
         self.G = Generator(image_size, latent_dim, network_capacity, transparent = transparent, attn_layers = attn_layers, no_const = no_const, fmap_max = fmap_max)
@@ -763,7 +763,7 @@ class StyleGAN2(nn.Module):
             nn.init.zeros_(block.to_noise2.bias)
 
     def EMA(self):
-        def update_moving_average(G_ema, G):
+        def update_moving_average(G_ema, G, beta_ema):
             l_param = list(G.parameters())
             l_ema_param = list(G_ema.parameters())
 
@@ -772,8 +772,8 @@ class StyleGAN2(nn.Module):
                     l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
                                         .add(l_param[i].data.mul(1-beta_ema)))
 
-        update_moving_average(self.SE, self.S)
-        update_moving_average(self.GE, self.G)
+        update_moving_average(self.SE, self.S, self.ema_beta)
+        update_moving_average(self.GE, self.G, self.ema_beta)
 
     def reset_parameter_averaging(self):
         self.SE.load_state_dict(self.S.state_dict())
