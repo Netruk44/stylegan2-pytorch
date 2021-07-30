@@ -54,6 +54,15 @@ NUM_CORES = multiprocessing.cpu_count()
 EXTS = ['jpg', 'jpeg', 'png']
 
 # helper classes
+def update_ema_gen(G, G_ema, beta_ema = 0.9999):
+    # TODO: Try removing this and using the pre-existing EMA updates.
+    l_param = list(G.parameters())
+    l_ema_param = list(G_ema.parameters())
+
+    for i in range(len(l_param)):
+        with torch.no_grad():
+            l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
+                                .add(l_param[i].data.mul(1-beta_ema)))
 
 class NanException(Exception):
     pass
@@ -1167,7 +1176,7 @@ class Trainer():
             self.GAN.G_opt.lookahead_step()
 
             if self.is_main:
-                self.GAN.EMA()
+                update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
 
         if apply_path_penalty and not np.isnan(avg_pl_length):
             self.pl_mean = self.pl_length_ma.update_average(self.pl_mean, avg_pl_length)
