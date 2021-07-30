@@ -932,6 +932,7 @@ class Trainer():
         self.lookahead_alpha = lookahead_alpha
         
         self.ema_beta = ema_beta
+        self.skip_save = False
 
     @property
     def image_extension(self):
@@ -1176,7 +1177,7 @@ class Trainer():
             self.GAN.G_opt.lookahead_step()
 
             if self.is_main:
-                update_ema_gen(self.GAN.G, self.GAN.GE, self.beta_ema)
+                update_ema_gen(self.GAN.G, self.GAN.GE, self.ema_beta)
 
         if apply_path_penalty and not np.isnan(avg_pl_length):
             self.pl_mean = self.pl_length_ma.update_average(self.pl_mean, avg_pl_length)
