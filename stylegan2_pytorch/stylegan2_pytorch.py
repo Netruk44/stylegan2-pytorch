@@ -965,9 +965,9 @@ class Trainer():
             self.logger.set_params(self.hparams)
         
         # Add newline to fid_scores to denote new training session
-        if self.calculate_fid_every is not None and self.is_main:
-            with open(str(self.results_dir / self.name / f'fid_scores.txt'), 'a') as f:
-                    f.write(f'\n')
+        #if self.calculate_fid_every is not None and self.is_main:
+        #    with open(str(self.results_dir / self.name / f'fid_scores.txt'), 'a') as f:
+        #            f.write(f'\n')
 
     def write_config(self):
         self.config_path.write_text(json.dumps(self.config()))
