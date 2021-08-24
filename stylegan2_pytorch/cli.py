@@ -70,6 +70,7 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
 
 def train_from_folder(
     data = './data',
+    base_dir = './',
     results_dir = './results',
     models_dir = './models',
     name = 'default',
@@ -126,6 +127,7 @@ def train_from_folder(
 ):
     model_args = dict(
         name = name,
+        base_dir = base_dir,
         results_dir = results_dir,
         models_dir = models_dir,
         batch_size = batch_size,
