@@ -832,6 +832,7 @@ class Trainer():
         dual_contrast_loss = False,
         dataset_aug_prob = 0.,
         calculate_fid_every = None,
+        calculate_fid_batch_size = 256,
         calculate_fid_num_images = 12800,
         clear_fid_cache = False,
         is_ddp = False,
@@ -915,6 +916,7 @@ class Trainer():
         self.dataset_aug_prob = dataset_aug_prob
 
         self.calculate_fid_every = calculate_fid_every
+        self.calculate_fid_batch_size = calculate_fid_batch_size
         self.calculate_fid_num_images = calculate_fid_num_images
         self.clear_fid_cache = clear_fid_cache
 
@@ -1317,7 +1319,7 @@ class Trainer():
             for j, image in enumerate(generated_images.unbind(0)):
                 torchvision.utils.save_image(image, str(fake_path / f'{str(j + batch_num * self.batch_size)}-ema.{ext}'))
 
-        return fid_score.calculate_fid_given_paths([str(real_path), str(fake_path)], 256, noise.device, 2048)
+        return fid_score.calculate_fid_given_paths([str(real_path), str(fake_path)], self.calculate_fid_batch_size, noise.device, 2048)
 
     @torch.no_grad()
     def truncate_style(self, tensor, trunc_psi = 0.75):
