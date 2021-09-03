@@ -124,6 +124,7 @@ def train_from_folder(
     lookahead_alpha=0.5,
     lookahead_k = 5,
     ema_beta = 0.9999,
+    augment_saved_with_disc_loss = True
 ):
     model_args = dict(
         name = name,
@@ -169,7 +170,8 @@ def train_from_folder(
         lookahead = lookahead,
         lookahead_alpha = lookahead_alpha,
         lookahead_k = lookahead_k,
-        ema_beta = ema_beta
+        ema_beta = ema_beta,
+        augment_saved_with_disc_loss = augment_saved_with_disc_loss
     )
 
     if generate:

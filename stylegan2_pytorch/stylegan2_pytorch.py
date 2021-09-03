@@ -842,6 +842,7 @@ class Trainer():
         lookahead_alpha=0.5,
         lookahead_k = 5,
         ema_beta = 0.9999,
+        augment_saved_with_disc_loss = False,
         *args,
         **kwargs
     ):
@@ -937,6 +938,7 @@ class Trainer():
         self.lookahead_alpha = lookahead_alpha
         
         self.ema_beta = ema_beta
+        self.augment_saved_with_disc_loss = augment_saved_with_disc_loss
 
     @property
     def image_extension(self):
@@ -1244,13 +1246,15 @@ class Trainer():
         # regular
 
         generated_images = self.generate_truncated(self.GAN.S, self.GAN.G, latents, n, trunc_psi = self.trunc_psi)
-        generated_images = self.augment_with_disc_value(generated_images)
+        if self.augment_saved_with_disc_loss:
+            generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
         
         # moving averages
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, latents, n, trunc_psi = self.trunc_psi)
-        generated_images = self.augment_with_disc_value(generated_images)
+        if self.augment_saved_with_disc_loss:
+            generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
 
         # mixing regularities
