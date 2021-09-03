@@ -1244,11 +1244,13 @@ class Trainer():
         # regular
 
         generated_images = self.generate_truncated(self.GAN.S, self.GAN.G, latents, n, trunc_psi = self.trunc_psi)
+        generated_images = self.augment_with_disc_value(generated_images, self.GAN.D)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
         
         # moving averages
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, latents, n, trunc_psi = self.trunc_psi)
+        generated_images = self.augment_with_disc_value(generated_images, self.GAN.D)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
 
         # mixing regularities
@@ -1273,6 +1275,28 @@ class Trainer():
 
         if self.evaluate_callback is not None:
             self.evaluate_callback(str(self.results_dir / self.name / f'{str(num)}.{ext}'), str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'))
+    
+    @torch.no_grad()
+    def augment_with_disc_value(self, generated_images, padding = 4):
+        images = []
+        d_vals, _ = self.GAN.D(generated_images)
+
+        for i, d_val in zip(generated_images, d_vals):
+            r = max(min(d_val / 10., 1.), 0.)
+            g = max(min(d_val / 2.5, 1.), 0.)
+            b = max(min(d_val / 1., 1.), 0.)
+
+            offset = padding // 2
+
+            # Create 'background' tensor with color
+            out_img = torch.tensor([r, g, b], device=i.device).unsqueeze(1).unsqueeze(2).repeat(1, i.shape[1] + padding, i.shape[2] + padding)
+
+            # Overlay input image onto background
+            out_img[ : , offset : i.shape[1] + offset, offset : i.shape[2] + offset] = i[:, :, :]
+
+            images.append(out_img)
+        
+        return torch.stack(images)
 
     @torch.no_grad()
     def calculate_fid(self, num_batches):
