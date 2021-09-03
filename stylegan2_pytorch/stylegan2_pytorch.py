@@ -949,7 +949,6 @@ class Trainer():
         self.lookahead_alpha = lookahead_alpha
         
         self.ema_beta = ema_beta
-        self.skip_save = False
         self.augment_saved_with_disc_loss = augment_saved_with_disc_loss
 
     @property
