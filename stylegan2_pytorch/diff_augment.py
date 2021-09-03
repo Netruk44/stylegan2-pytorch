@@ -118,6 +118,12 @@ def rand_zoom(x, ratio=0.25, maintain_aspect=True):
     return torch.stack(imgs)
 
 AUGMENT_FNS = {
+    'brightness': [partial(rand_brightness, scale=1.)],
+    'lightbrightness': [partial(rand_brightness, scale=.65)],
+    'contrast':  [partial(rand_contrast, scale=.5)],
+    'lightcontrast':  [partial(rand_contrast, scale=.25)],
+    'saturation': [partial(rand_saturation, scale=1.)],
+    'lightsaturation': [partial(rand_saturation, scale=.5)],
     'color': [partial(rand_brightness, scale=1.), partial(rand_saturation, scale=1.), partial(rand_contrast, scale=0.5)],
     'lightcolor': [partial(rand_brightness, scale=0.65), partial(rand_saturation, scale=.5), partial(rand_contrast, scale=0.5)],
     'xlightcolor': [partial(rand_brightness, scale=0.25), partial(rand_saturation, scale=.25), partial(rand_contrast, scale=0.25)],

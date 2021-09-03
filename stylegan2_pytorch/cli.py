@@ -164,6 +164,7 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
 
 def train_from_folder(
     data = './data',
+    base_dir = './',
     results_dir = './results',
     models_dir = './models',
     name = 'default',
@@ -209,6 +210,7 @@ def train_from_folder(
     dataset_aug_prob = 0.,
     multi_gpus = False,
     calculate_fid_every = None,
+    calculate_fid_batch_size = 256,
     calculate_fid_num_images = 12800,
     clear_fid_cache = False,
     seed = 42,
@@ -217,6 +219,7 @@ def train_from_folder(
     lookahead_alpha=0.5,
     lookahead_k = 5,
     ema_beta = 0.9999,
+    augment_saved_with_disc_loss = True,
 
     # Vast.ai settings
     delete_old_models = True,
@@ -234,6 +237,7 @@ def train_from_folder(
 
     model_args = dict(
         name = name,
+        base_dir = base_dir,
         results_dir = results_dir,
         models_dir = models_dir,
         batch_size = batch_size,
@@ -268,6 +272,7 @@ def train_from_folder(
         dual_contrast_loss = dual_contrast_loss,
         dataset_aug_prob = dataset_aug_prob,
         calculate_fid_every = calculate_fid_every,
+        calculate_fid_batch_size = calculate_fid_batch_size,
         calculate_fid_num_images = calculate_fid_num_images,
         clear_fid_cache = clear_fid_cache,
         mixed_prob = mixed_prob,
@@ -276,6 +281,7 @@ def train_from_folder(
         lookahead_alpha = lookahead_alpha,
         lookahead_k = lookahead_k,
         ema_beta = ema_beta,
+        augment_saved_with_disc_loss = augment_saved_with_disc_loss,
 
         # Vast.ai settings
         delete_old_models = delete_old_models,

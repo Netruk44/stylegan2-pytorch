@@ -97,7 +97,17 @@ class Residual(nn.Module):
     def forward(self, x):
         return self.fn(x) + x
 
-ChanNorm = partial(nn.InstanceNorm2d, affine = True)
+class ChanNorm(nn.Module):
+    def __init__(self, dim, eps = 1e-5):
+        super().__init__()
+        self.eps = eps
+        self.g = nn.Parameter(torch.ones(1, dim, 1, 1))
+        self.b = nn.Parameter(torch.zeros(1, dim, 1, 1))
+
+    def forward(self, x):
+        std = torch.var(x, dim = 1, unbiased = False, keepdim = True).sqrt()
+        mean = torch.mean(x, dim = 1, keepdim = True)
+        return (x - mean) / (std + self.eps) * self.g + self.b
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -715,7 +725,7 @@ class StyleGAN2(nn.Module):
         super().__init__()
         self.lr = lr
         self.steps = steps
-        self.ema_updater = EMA(ema_beta)
+        self.ema_beta = ema_beta
 
         self.S = StyleVectorizer(latent_dim, style_depth, lr_mul = lr_mlp)
         self.G = Generator(image_size, latent_dim, network_capacity, transparent = transparent, attn_layers = attn_layers, no_const = no_const, fmap_max = fmap_max)
@@ -772,13 +782,17 @@ class StyleGAN2(nn.Module):
             nn.init.zeros_(block.to_noise2.bias)
 
     def EMA(self):
-        def update_moving_average(ma_model, current_model):
-            for current_params, ma_params in zip(current_model.parameters(), ma_model.parameters()):
-                old_weight, up_weight = ma_params.data, current_params.data
-                ma_params.data = self.ema_updater.update_average(old_weight, up_weight)
+        def update_moving_average(G_ema, G, beta_ema):
+            l_param = list(G.parameters())
+            l_ema_param = list(G_ema.parameters())
 
-        update_moving_average(self.SE, self.S)
-        update_moving_average(self.GE, self.G)
+            for i in range(len(l_param)):
+                with torch.no_grad():
+                    l_ema_param[i].data.copy_(l_ema_param[i].data.mul(beta_ema)
+                                        .add(l_param[i].data.mul(1-beta_ema)))
+
+        update_moving_average(self.SE, self.S, self.ema_beta)
+        update_moving_average(self.GE, self.G, self.ema_beta)
 
     def reset_parameter_averaging(self):
         self.SE.load_state_dict(self.S.state_dict())
@@ -827,6 +841,7 @@ class Trainer():
         dual_contrast_loss = False,
         dataset_aug_prob = 0.,
         calculate_fid_every = None,
+        calculate_fid_batch_size = 256,
         calculate_fid_num_images = 12800,
         clear_fid_cache = False,
         is_ddp = False,
@@ -837,6 +852,7 @@ class Trainer():
         lookahead_alpha=0.5,
         lookahead_k = 5,
         ema_beta = 0.9999,
+        augment_saved_with_disc_loss = False,
         *args,
         **kwargs
     ):
@@ -910,6 +926,7 @@ class Trainer():
         self.dataset_aug_prob = dataset_aug_prob
 
         self.calculate_fid_every = calculate_fid_every
+        self.calculate_fid_batch_size = calculate_fid_batch_size
         self.calculate_fid_num_images = calculate_fid_num_images
         self.clear_fid_cache = clear_fid_cache
 
@@ -933,6 +950,7 @@ class Trainer():
         
         self.ema_beta = ema_beta
         self.skip_save = False
+        self.augment_saved_with_disc_loss = augment_saved_with_disc_loss
 
     @property
     def image_extension(self):
@@ -961,9 +979,9 @@ class Trainer():
             self.logger.set_params(self.hparams)
         
         # Add newline to fid_scores to denote new training session
-        if self.calculate_fid_every is not None and self.is_main:
-            with open(str(self.results_dir / self.name / f'fid_scores.txt'), 'a') as f:
-                    f.write(f'\n')
+        #if self.calculate_fid_every is not None and self.is_main:
+        #    with open(str(self.results_dir / self.name / f'fid_scores.txt'), 'a') as f:
+        #            f.write(f'\n')
 
     def write_config(self):
         self.config_path.write_text(json.dumps(self.config()))
@@ -1241,11 +1259,15 @@ class Trainer():
         # regular
 
         generated_images = self.generate_truncated(self.GAN.S, self.GAN.G, latents, n, trunc_psi = self.trunc_psi)
+        if self.augment_saved_with_disc_loss:
+            generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
         
         # moving averages
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, latents, n, trunc_psi = self.trunc_psi)
+        if self.augment_saved_with_disc_loss:
+            generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
 
         # mixing regularities
@@ -1270,6 +1292,28 @@ class Trainer():
 
         if self.evaluate_callback is not None:
             self.evaluate_callback(str(self.results_dir / self.name / f'{str(num)}.{ext}'), str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), str(self.results_dir / self.name / f'{str(num)}-mr.{ext}'))
+    
+    @torch.no_grad()
+    def augment_with_disc_value(self, generated_images, padding = 4):
+        images = []
+        d_vals, _ = self.GAN.D(generated_images)
+
+        for i, d_val in zip(generated_images, d_vals):
+            r = max(min(d_val / 10., 1.), 0.)
+            g = max(min(d_val / 2.5, 1.), 0.)
+            b = max(min(d_val / 1., 1.), 0.)
+
+            offset = padding // 2
+
+            # Create 'background' tensor with color
+            out_img = torch.tensor([r, g, b], device=i.device).unsqueeze(1).unsqueeze(2).repeat(1, i.shape[1] + padding, i.shape[2] + padding)
+
+            # Overlay input image onto background
+            out_img[ : , offset : i.shape[1] + offset, offset : i.shape[2] + offset] = i[:, :, :]
+
+            images.append(out_img)
+        
+        return torch.stack(images)
 
     @torch.no_grad()
     def calculate_fid(self, num_batches):
@@ -1314,7 +1358,7 @@ class Trainer():
             for j, image in enumerate(generated_images.unbind(0)):
                 torchvision.utils.save_image(image, str(fake_path / f'{str(j + batch_num * self.batch_size)}-ema.{ext}'))
 
-        return fid_score.calculate_fid_given_paths([str(real_path), str(fake_path)], 256, noise.device, 2048)
+        return fid_score.calculate_fid_given_paths([str(real_path), str(fake_path)], self.calculate_fid_batch_size, noise.device, 2048)
 
     @torch.no_grad()
     def truncate_style(self, tensor, trunc_psi = 0.75):
