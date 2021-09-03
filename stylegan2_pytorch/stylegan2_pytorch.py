@@ -1244,13 +1244,13 @@ class Trainer():
         # regular
 
         generated_images = self.generate_truncated(self.GAN.S, self.GAN.G, latents, n, trunc_psi = self.trunc_psi)
-        generated_images = self.augment_with_disc_value(generated_images, self.GAN.D)
+        generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}.{ext}'), nrow=num_rows)
         
         # moving averages
 
         generated_images = self.generate_truncated(self.GAN.SE, self.GAN.GE, latents, n, trunc_psi = self.trunc_psi)
-        generated_images = self.augment_with_disc_value(generated_images, self.GAN.D)
+        generated_images = self.augment_with_disc_value(generated_images)
         save_image_without_overwrite(generated_images, str(self.results_dir / self.name / f'{str(num)}-ema.{ext}'), nrow=num_rows)
 
         # mixing regularities
