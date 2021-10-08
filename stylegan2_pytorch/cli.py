@@ -55,6 +55,7 @@ def run_training(rank, world_size, model_args, data, load_from, disc_load_from, 
             model2 = Trainer(**model_args)
             model2.load(disc_load_from)
             model.GAN.D, model.GAN.D_aug, model.GAN.D_cl, model.GAN.D_opt = model2.GAN.D, model2.GAN.D_aug, model2.GAN.D_cl, model2.GAN.D_opt
+            del model2
     else:
         model.clear()
 
