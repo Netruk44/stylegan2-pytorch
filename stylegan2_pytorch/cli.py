@@ -28,7 +28,7 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def run_training(rank, world_size, model_args, data, load_from, new, num_train_steps, name, seed):
+def run_training(rank, world_size, model_args, data, load_from, disc_load_from, new, num_train_steps, name, seed):
     is_main = rank == 0
     is_ddp = world_size > 1
 
@@ -50,6 +50,11 @@ def run_training(rank, world_size, model_args, data, load_from, new, num_train_s
 
     if not new:
         model.load(load_from)
+
+        if disc_load_from > 0:
+            model2 = Trainer(**model_args)
+            model2.load(disc_load_from)
+            model.GAN.D, model.GAN.D_aug, model.GAN.D_cl, model.GAN.D_opt = model2.GAN.D, model2.GAN.D_aug, model2.GAN.D_cl, model2.GAN.D_opt
     else:
         model.clear()
 
@@ -76,6 +81,7 @@ def train_from_folder(
     name = 'default',
     new = False,
     load_from = -1,
+    disc_load_from = -1,
     image_size = 128,
     network_capacity = 16,
     fmap_max = 512,
@@ -196,11 +202,11 @@ def train_from_folder(
     world_size = torch.cuda.device_count()
 
     if world_size == 1 or not multi_gpus:
-        run_training(0, 1, model_args, data, load_from, new, num_train_steps, name, seed)
+        run_training(0, 1, model_args, data, load_from, disc_load_from, new, num_train_steps, name, seed)
         return
 
     mp.spawn(run_training,
-        args=(world_size, model_args, data, load_from, new, num_train_steps, name, seed),
+        args=(world_size, model_args, data, load_from, disc_load_from, new, num_train_steps, name, seed),
         nprocs=world_size,
         join=True)
 
