@@ -128,7 +128,7 @@ def train_from_folder(
     clear_fid_cache = False,
     seed = 42,
     log = False,
-    lookahead=False,
+    lookahead=True,
     lookahead_alpha=0.5,
     lookahead_k = 5,
     ema_beta = 0.9999,
