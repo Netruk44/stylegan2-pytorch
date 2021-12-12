@@ -132,7 +132,7 @@ def train_from_folder(
     lookahead_alpha=0.5,
     lookahead_k = 5,
     ema_beta = 0.9999,
-    augment_saved_with_disc_loss = True
+    augment_saved_with_disc_loss = False
 ):
     model_args = dict(
         name = name,
